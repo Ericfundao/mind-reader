@@ -1,0 +1,221 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="theme-color" content="#0d0809">
+<title>Mind Reader</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cinzel:wght@500;700;800&display=swap">
+<style>
+  :root{
+    --bg:#0d0809; --stage:#2a0f15; --card:#1a1012; --line:#4a2a2e;
+    --txt:#f6ecdc; --mut:#a8928a; --gold:#d9b25f; --gold-dk:#a8823a;
+    --f-display:"Cinzel","Trajan Pro",Georgia,serif;
+    --f-body:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+    color-scheme:dark;
+  }
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent;user-select:none;-webkit-user-select:none}
+  html,body{height:100%;margin:0;overflow:hidden;touch-action:none;overscroll-behavior:none}
+  body{background:radial-gradient(ellipse 80% 60% at 50% 0%,var(--stage) 0%,var(--bg) 70%) var(--bg);
+    color:var(--txt);font-family:var(--f-body)}
+  .app{height:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;
+    padding:calc(56px + env(safe-area-inset-top,0px)) max(16px,env(safe-area-inset-right,0px)) calc(24px + env(safe-area-inset-bottom,0px)) max(16px,env(safe-area-inset-left,0px))}
+  .brand{position:fixed;top:calc(18px + env(safe-area-inset-top,0px));left:0;right:0;text-align:center;
+    font-family:var(--f-display);letter-spacing:.4em;font-size:12px;color:var(--mut);text-transform:uppercase}
+  .brand b{color:var(--gold);font-weight:700}
+  h1{margin:0;font-family:var(--f-display);font-weight:500;font-size:clamp(20px,5.5vw,28px);text-align:center;text-wrap:balance}
+  .sub{margin:0;color:var(--mut);text-align:center;font-size:15px;text-wrap:balance}
+  .screen{flex-direction:column;align-items:center;gap:24px;width:100%;max-width:420px;display:flex}
+  .screen[hidden]{display:none}
+  .screen.on{animation:fade .5s ease}
+  @keyframes fade{from{opacity:.2;transform:translateY(8px)}to{opacity:1;transform:none}}
+  .head{display:flex;flex-direction:column;gap:8px;align-items:center}
+  .input{width:150px;height:150px;border-radius:20px;border:1px solid var(--line);background:var(--card);
+    color:var(--txt);font-family:var(--f-display);font-size:84px;font-weight:700;text-align:center;outline:none;caret-color:var(--gold);
+    user-select:text;-webkit-user-select:text}
+  .input::placeholder{color:var(--line)}
+  .input:focus{border-color:var(--gold-dk);box-shadow:0 0 0 3px rgba(217,178,95,.25)}
+  .btn{appearance:none;border:0;border-radius:999px;padding:15px 44px;font-family:var(--f-display);font-size:16px;font-weight:700;
+    letter-spacing:.12em;text-transform:uppercase;color:var(--bg);cursor:pointer;
+    background:linear-gradient(180deg,var(--gold),var(--gold-dk));box-shadow:0 10px 30px rgba(217,178,95,.2)}
+  .btn:disabled{opacity:.35}
+  .btn.ghost{background:transparent;border:1px solid var(--line);box-shadow:none;color:var(--mut);padding:11px 28px;font-size:13px}
+  .card{position:relative;width:200px;height:286px;max-width:100%;perspective:1000px}
+  .card .in{position:absolute;inset:0;transition:transform .9s cubic-bezier(.2,.8,.2,1);transform-style:preserve-3d}
+  .card.flip .in{transform:rotateY(180deg)}
+  .face{position:absolute;inset:0;border-radius:14px;backface-visibility:hidden;-webkit-backface-visibility:hidden;
+    display:flex;align-items:center;justify-content:center}
+  .back{background:
+      radial-gradient(circle at 50% 50%,transparent 0 46px,var(--gold-dk) 46px 47px,transparent 47px),
+      repeating-linear-gradient(45deg,var(--stage) 0 7px,var(--card) 7px 14px);
+    border:7px solid var(--card);outline:1px solid var(--gold-dk);outline-offset:-12px;box-shadow:0 24px 60px rgba(0,0,0,.7)}
+  .back .seal{font-family:var(--f-display);font-size:40px;color:var(--gold);animation:pulse 2.6s ease-in-out infinite}
+  @keyframes pulse{50%{text-shadow:0 0 22px rgba(217,178,95,.8)}}
+  .front{transform:rotateY(180deg);background:var(--txt);color:var(--stage);border:7px solid var(--txt);
+    outline:1px solid var(--gold-dk);outline-offset:-12px;box-shadow:0 24px 60px rgba(0,0,0,.7)}
+  .front .n{font-family:var(--f-display);font-size:150px;font-weight:800;line-height:1}
+  .front .pip{position:absolute;font-family:var(--f-display);font-weight:700;font-size:22px;line-height:1}
+  .front .pip.tl{top:16px;left:18px}.front .pip.br{bottom:16px;right:18px;transform:rotate(180deg)}
+  .hint{color:var(--mut);font-size:14px;letter-spacing:.06em;min-height:1.4em;text-align:center}
+  .lock{font-family:var(--f-display);color:var(--gold);font-size:12px;letter-spacing:.25em;text-transform:uppercase}
+  .spark{position:fixed;inset:0;width:100%;height:100%;pointer-events:none}
+</style>
+</head>
+<body>
+<div class="brand"><span id="star">✦</span> <b>Mind</b>Reader ✦</div>
+
+<div class="app">
+  <section class="screen on" id="s1">
+    <div class="head">
+      <h1>Pense em um número de 1 a 8</h1>
+      <p class="sub">O mágico registra a previsão antes de você falar</p>
+    </div>
+    <input class="input" id="num" inputmode="numeric" maxlength="1" autocomplete="off" placeholder="?" aria-label="Previsão">
+    <button class="btn" id="hide" disabled>Ocultar</button>
+  </section>
+
+  <section class="screen" id="s2" hidden>
+    <div class="lock">Previsão lacrada</div>
+    <div class="card" id="card">
+      <div class="in">
+        <div class="face back"><div class="seal">✦</div></div>
+        <div class="face front"><span class="pip tl" id="p1">?</span><span class="n" id="out">?</span><span class="pip br" id="p2">?</span></div>
+      </div>
+    </div>
+    <div class="hint" id="hint">Diga seu número em voz alta…</div>
+    <button class="btn ghost" id="again" style="visibility:hidden">Nova previsão</button>
+  </section>
+</div>
+<canvas class="spark" id="fx"></canvas>
+
+<script>
+(() => {
+  const $ = id => document.getElementById(id);
+  const num = $('num'), hide = $('hide'), card = $('card'), out = $('out'),
+        hint = $('hint'), again = $('again'), star = $('star');
+  let state = 'input';       // input | hidden | revealed
+  let dir = 0;               // 0 = nada; 1 frente, 2 direita, 3 trás, 4 esquerda
+
+  // ---------- Tela 1 ----------
+  num.addEventListener('input', () => {
+    num.value = num.value.replace(/[^1-8]/g, '').slice(0, 1);
+    hide.disabled = !num.value;
+  });
+  num.addEventListener('keydown', e => { if (e.key === 'Enter' && num.value) hide.click(); });
+
+  hide.addEventListener('click', async () => {
+    // iPhone exige pedir permissão do sensor dentro de um toque
+    try {
+      if (typeof DeviceOrientationEvent !== 'undefined' && DeviceOrientationEvent.requestPermission)
+        await DeviceOrientationEvent.requestPermission();
+    } catch (_) {}
+    num.blur(); num.value = ''; hide.disabled = true;
+    show('s2');
+    state = 'hidden'; dir = 0; base = null; star.textContent = '✦';
+    card.classList.remove('flip');
+    hint.textContent = 'Diga seu número em voz alta…';
+    again.style.visibility = 'hidden';
+  });
+
+  again.addEventListener('click', e => {
+    e.stopPropagation();
+    state = 'input'; show('s1');
+  });
+
+  function show(id){
+    document.querySelectorAll('.screen').forEach(s => {
+      const on = s.id === id; s.hidden = !on; s.classList.toggle('on', on);
+    });
+  }
+
+  // ---------- Giroscópio: escolhe a direção em segredo ----------
+  // A posição de repouso é aprendida aos poucos. Uma inclinação curta de ~20°
+  // em qualquer direção grava o número; voltar à posição normal não apaga.
+  const LIMIAR = 20, SEGURAR = 150;   // graus, milissegundos
+  let base = null, cand = 0, candDesde = 0;
+  addEventListener('deviceorientation', e => {
+    if (state !== 'hidden' || e.beta == null) return;
+    const b = e.beta, g = e.gamma;
+    if (!base) { base = {b, g}; return; }
+    const db = b - base.b, dg = g - base.g;
+    const forca = Math.max(Math.abs(db), Math.abs(dg));
+    if (forca < LIMIAR * 0.5) {           // em repouso: acompanha a mão devagar
+      base.b += db * 0.05; base.g += dg * 0.05; cand = 0; return;
+    }
+    if (forca < LIMIAR) return;
+    // frente = topo do celular se afasta de você
+    const d = Math.abs(db) >= Math.abs(dg) ? (db < 0 ? 1 : 3) : (dg > 0 ? 2 : 4);
+    const agora = performance.now();
+    if (d !== cand) { cand = d; candDesde = agora; return; }
+    if (agora - candDesde >= SEGURAR && dir !== d) {
+      dir = d;
+      star.textContent = '✧';             // sinal só para o mágico
+      if (navigator.vibrate) navigator.vibrate(15);
+    }
+  });
+
+  // ---------- Revelação ----------
+  // Com direção gravada: tocar na metade de CIMA da tela = 1–4,
+  // na metade de BAIXO = 5–8. Sem direção: conta os dedos (1–4).
+  let maxT = 0, tT = null, yToque = 0;
+  document.addEventListener('touchstart', e => {
+    if (state !== 'hidden' || e.target.closest('button')) return;
+    e.preventDefault();
+    if (!maxT) yToque = e.touches[0].clientY;
+    maxT = Math.max(maxT, e.touches.length);
+    clearTimeout(tT);
+    tT = setTimeout(() => {
+      const embaixo = yToque > innerHeight / 2;
+      reveal(dir ? dir + (embaixo ? 4 : 0) : Math.min(4, maxT));
+      maxT = 0;
+    }, 250);
+  }, { passive: false });
+
+  // Teste no computador: teclas 1–8
+  addEventListener('keydown', e => {
+    if (state === 'hidden' && /^[1-8]$/.test(e.key)) reveal(+e.key);
+  });
+  document.addEventListener('contextmenu', e => e.preventDefault());
+
+  function reveal(n){
+    if (state !== 'hidden') return;
+    state = 'revealed';
+    dir = 0; star.textContent = '✦';
+    out.textContent = $('p1').textContent = $('p2').textContent = n;
+    card.classList.add('flip');
+    hint.textContent = 'Eu sabia.';
+    setTimeout(() => { burst(); again.style.visibility = 'visible'; }, 650);
+  }
+
+  // ---------- Faíscas ----------
+  const cv = $('fx'), cx = cv.getContext('2d');
+  let parts = [];
+  function size(){ cv.width = innerWidth * devicePixelRatio; cv.height = innerHeight * devicePixelRatio; }
+  addEventListener('resize', size); size();
+  function burst(){
+    const r = card.getBoundingClientRect(), d = devicePixelRatio;
+    const x = (r.left + r.width/2) * d, y = (r.top + r.height/2) * d;
+    const start = parts.length === 0;
+    for (let i = 0; i < 90; i++){
+      const a = Math.random() * Math.PI * 2, v = (2 + Math.random() * 6) * d;
+      parts.push({x, y, vx: Math.cos(a)*v, vy: Math.sin(a)*v, life: 1,
+        c: Math.random() < .6 ? '#d9b25f' : '#f6ecdc', s: (1 + Math.random()*2.5) * d});
+    }
+    if (start) requestAnimationFrame(tick);
+  }
+  function tick(){
+    cx.clearRect(0, 0, cv.width, cv.height);
+    parts = parts.filter(p => (p.life -= .016) > 0);
+    parts.forEach(p => {
+      p.x += p.vx; p.y += p.vy; p.vy += .08 * devicePixelRatio; p.vx *= .985;
+      cx.globalAlpha = p.life; cx.fillStyle = p.c;
+      cx.beginPath(); cx.arc(p.x, p.y, p.s, 0, 7); cx.fill();
+    });
+    cx.globalAlpha = 1;
+    if (parts.length) requestAnimationFrame(tick); else cx.clearRect(0, 0, cv.width, cv.height);
+  }
+})();
+</script>
+</body>
+</html>
