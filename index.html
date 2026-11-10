@@ -112,7 +112,7 @@
     } catch (_) {}
     num.blur(); num.value = ''; hide.disabled = true;
     show('s2');
-    state = 'hidden'; dir = 0; base = null; star.textContent = '✦';
+    state = 'hidden'; dir = 0; base = null; gesto = null; tocando = false; star.textContent = '✦';
     card.classList.remove('flip');
     hint.textContent = 'Diga seu número em voz alta…';
     again.style.visibility = 'hidden';
@@ -130,45 +130,80 @@
   }
 
   // ---------- Giroscópio: escolhe a direção em segredo ----------
-  // A posição de repouso é aprendida aos poucos. Uma inclinação curta de ~20°
-  // em qualquer direção grava o número; voltar à posição normal não apaga.
-  const LIMIAR = 20, SEGURAR = 150;   // graus, milissegundos
-  let base = null, cand = 0, candDesde = 0;
+  // Gesto = "piscada": inclinar ~20° numa direção e VOLTAR em até 1,5 s.
+  // A direção vale pelo ponto mais inclinado do gesto, então o movimento de volta
+  // (ou um leve passar do ponto) não troca o número. Mudar o celular de posição
+  // devagar ou ficar parado inclinado (ex.: virar a tela para a plateia) não grava
+  // nada: o app só adota a nova posição como repouso.
+  // Usa o vetor da gravidade (calculado de beta/gamma) em vez dos ângulos crus:
+  // com o celular em pé, o gamma dá saltos e gerava direções erradas.
+  const LIMIAR = 20, REPOUSO = 10;     // graus
+  const GESTO_MAX = 1500, PARADO = 800; // milissegundos
+  const R = Math.PI / 180;
+  let base = null, gesto = null, ref = null, mexeu = 0, tocando = false;
+
+  function vetor(b, g){                // "para cima" no referencial do aparelho
+    b *= R; g *= R;
+    return [-Math.cos(b) * Math.sin(g), Math.sin(b), Math.cos(b) * Math.cos(g)];
+  }
+  function desvio(u, u0){              // [frente(+)/trás(-), direita(+)/esquerda(-)] em graus
+    let p = Math.atan2(u[2], u[1]) - Math.atan2(u0[2], u0[1]);
+    p = Math.atan2(Math.sin(p), Math.cos(p));
+    const r = Math.asin(Math.max(-1, Math.min(1, u0[0]))) - Math.asin(Math.max(-1, Math.min(1, u[0])));
+    return [p / R, r / R];
+  }
+  function angulo(a, c){ return Math.acos(Math.max(-1, Math.min(1, a[0]*c[0] + a[1]*c[1] + a[2]*c[2]))) / R; }
+
   addEventListener('deviceorientation', e => {
-    if (state !== 'hidden' || e.beta == null) return;
-    const b = e.beta, g = e.gamma;
-    if (!base) { base = {b, g}; return; }
-    const db = b - base.b, dg = g - base.g;
-    const forca = Math.max(Math.abs(db), Math.abs(dg));
-    if (forca < LIMIAR * 0.5) {           // em repouso: acompanha a mão devagar
-      base.b += db * 0.05; base.g += dg * 0.05; cand = 0; return;
+    if (state !== 'hidden' || tocando || e.beta == null || e.gamma == null) return;
+    const u = vetor(e.beta, e.gamma), agora = performance.now();
+    if (!base) { base = u; ref = u; mexeu = agora; return; }
+    if (angulo(u, ref) > 3) { ref = u; mexeu = agora; }   // detecta se a mão está parada
+
+    const [p, r] = desvio(u, base);
+    const forca = Math.max(Math.abs(p), Math.abs(r));
+
+    if (forca < REPOUSO) {             // em repouso
+      if (gesto && agora - gesto.t0 <= GESTO_MAX) {
+        dir = gesto.d;
+        star.textContent = '✧';         // sinal só para o mágico
+        if (navigator.vibrate) navigator.vibrate(15);
+      }
+      gesto = null;
+      base = base.map((v, i) => v + (u[i] - v) * 0.05);   // acompanha a mão devagar
+      return;
     }
-    if (forca < LIMIAR) return;
-    // frente = topo do celular se afasta de você
-    const d = Math.abs(db) >= Math.abs(dg) ? (db < 0 ? 1 : 3) : (dg > 0 ? 2 : 4);
-    const agora = performance.now();
-    if (d !== cand) { cand = d; candDesde = agora; return; }
-    if (agora - candDesde >= SEGURAR && dir !== d) {
-      dir = d;
-      star.textContent = '✧';             // sinal só para o mágico
-      if (navigator.vibrate) navigator.vibrate(15);
+
+    if (forca >= LIMIAR) {
+      // frente = topo do celular se afasta de você
+      const d = Math.abs(p) >= Math.abs(r) ? (p > 0 ? 1 : 3) : (r > 0 ? 2 : 4);
+      if (!gesto) gesto = { t0: agora, pico: forca, d };
+      else if (forca > gesto.pico) { gesto.pico = forca; gesto.d = d; }
+    }
+
+    // Ficou parado fora do repouso (mudou de posição ou segurou demais):
+    // vira o novo repouso e descarta o gesto em andamento.
+    if (agora - mexeu >= PARADO && (!gesto || agora - gesto.t0 > GESTO_MAX)) {
+      base = u; gesto = null;
     }
   });
 
   // ---------- Revelação ----------
   // Com direção gravada: tocar na metade de CIMA da tela = 1–4,
   // na metade de BAIXO = 5–8. Sem direção: conta os dedos (1–4).
-  let maxT = 0, tT = null, yToque = 0;
+  // A direção é congelada no primeiro toque: o movimento da mão ao tocar
+  // não pode mais trocar o número.
+  let maxT = 0, tT = null, yToque = 0, dirToque = 0;
   document.addEventListener('touchstart', e => {
     if (state !== 'hidden' || e.target.closest('button')) return;
     e.preventDefault();
-    if (!maxT) yToque = e.touches[0].clientY;
+    if (!maxT) { yToque = e.touches[0].clientY; dirToque = dir; tocando = true; }
     maxT = Math.max(maxT, e.touches.length);
     clearTimeout(tT);
     tT = setTimeout(() => {
       const embaixo = yToque > innerHeight / 2;
-      reveal(dir ? dir + (embaixo ? 4 : 0) : Math.min(4, maxT));
-      maxT = 0;
+      reveal(dirToque ? dirToque + (embaixo ? 4 : 0) : Math.min(4, maxT));
+      maxT = 0; tocando = false;
     }, 250);
   }, { passive: false });
 
